@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "uf2utils"
+version = "0.9.1"
+authors = [
+  { name="Pat Deegan" },
+]
+description = "A flexible and cleanish framework for dealing with UF2 files"
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: GNU Lesser General Public License v2 or later (LGPLv2+)",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    'littlefs-python >= 0.10.0',
+]
+
+[project.scripts]
+uf2info = 'uf2utils.examples.uf2_info:main'
+uf2extract = 'uf2utils.examples.extract_binary:main'
+
+[project.urls]
+Homepage = "https://github.com/psychogenic/uf2utils"
+Issues = "https://github.com/psychogenic/uf2utils/issues"
