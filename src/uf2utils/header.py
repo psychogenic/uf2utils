@@ -8,7 +8,7 @@ Created on Mar 13, 2024
 
 Offset    Size    Value
 0         4    First magic number, 0x0A324655 ("UF2\n")
-4         4    Second magic number, 0x9E5D5157
+4         4    Second magic number, 0x9E5D5157 (arbitrary)
 8         4    Flags
 12        4    Address in flash where the data should be written
 16        4    Number of bytes used in data (often 256)
@@ -16,7 +16,7 @@ Offset    Size    Value
 24        4    Total number of blocks in file
 28        4    File size or board family ID or zero
 32        476  Data, padded with zeros
-508       4    Final magic number, 0x0AB16F30
+508       4    Final magic number, 0x0AB16F30 (arbitrary)
 
 '''
 import struct 

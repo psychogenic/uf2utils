@@ -27,7 +27,7 @@ def get_args():
 
 def main():
     args = get_args()
-    uf2 = UF2File(args.infile)
+    uf2 = UF2File(args.infile, fill_gaps=False)
     
     uf2.sort_blocks()
     # uf2.renumber_blocks()
@@ -55,7 +55,7 @@ def main():
     if num_blocks:
         print(f"\tspanning {hex(uf2[0].header.address)} - {hex(uf2[-1].header.address)} in {num_blocks} blocks")
         print(f'\tTotal payload size: {payload_size} bytes')
-        uf2.generate_blocks_for_gaps()
+        # uf2.generate_blocks_for_gaps()
         num_blocks_after = len(uf2)
         if num_blocks_after != num_blocks:
             print(f'\tCONTAINS GAPS: {num_blocks_after - num_blocks} must be generated to fill')

@@ -21,11 +21,11 @@ class DataBlock:
         payload = data[32:32 + hdr.payload_size]
         return cls(payload, hdr)
     
-    def __init__(self, payload:bytearray, header:Header=None):
+    def __init__(self, payload:bytearray, header:Header=None, magic_start1:int=None, magic_end:int=None):
         self.payload = payload 
-        #if len(self.payload) < MaxPayloadSize:
-        #   self.payload += bytearray(MaxPayloadSize - len(self.payload))
         self.header = header 
+        self.magic_start1 = magic_start1 
+        self.magic_end = magic_end
         
         
     @property 
@@ -36,8 +36,10 @@ class DataBlock:
             global knowledge of things, thus a higher level up).
         '''
         target = bytearray(BlockSize)
+        magic_start1 = self.magic_start1 if self.magic_start1 is not None else Magic.START1
+        magic_end = self.magic_end if self.magic_end is not None else Magic.END
         struct.pack_into('<IIIIIIII', target, 0, 
-                         Magic.START0, Magic.START1, 
+                         Magic.START0, magic_start1, 
                          self.header.flags, 
                          self.header.address, 
                          len(self.payload), 
@@ -45,7 +47,7 @@ class DataBlock:
                          self.header.total_blocks, 
                          self.header.board_family)
         target[32: 32+len(self.payload)] = self.payload
-        struct.pack_into('<I', target, BlockSize - 4, Magic.END)
+        struct.pack_into('<I', target, BlockSize - 4, magic_end)
         return target
     
     

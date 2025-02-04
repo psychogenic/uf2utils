@@ -5,7 +5,7 @@ Created on Mar 13, 2024
 @copyright: Copyright (C) 2024 Pat Deegan, https://psychogenic.com
 '''
 import os
-from uf2utils.constants import BlockSize, DefaultBlockPayloadSize, Flags
+from uf2utils.constants import BlockSize, DefaultBlockPayloadSize, Flags, Magic
 from uf2utils.header import Header, UF2EncodeError, UF2DecodeError
 from uf2utils.block import DataBlock
 from uf2utils.family import Family
@@ -54,6 +54,20 @@ class UF2File:
     '''
     
     @classmethod 
+    def setMagic(cls, start:int, end:int):
+        cls.setMarkerStart(start)
+        cls.setMarkerEnd(end)
+        
+    @classmethod
+    def setMarkerStart(cls, start:int):
+        Magic.START1 = start 
+        
+    @classmethod 
+    def setMarkerEnd(cls, end:int):
+        Magic.END = end
+        
+    
+    @classmethod 
     def readBlocks(cls, filepath:str):
         blocks = []
         if not os.path.exists(filepath):
@@ -71,7 +85,10 @@ class UF2File:
 
         return blocks
     
-    def __init__(self, fpath:str='', board_family:int=None, fill_gaps:bool=False):
+    def __init__(self, fpath:str='', board_family:int=None, 
+                 fill_gaps:bool=False,
+                 magic_start:int=None, 
+                 magic_end:int = None):
         '''
             UF2File constructor
             @param fpath: path to file (will read in automatically, if passed)
@@ -84,6 +101,10 @@ class UF2File:
             # set some sane default
             board_family = Family.byName('RP2040').id
             
+        self.magic_start1 = magic_start 
+        self.magic_end = magic_end
+        
+        self._setupMagic()
         # the uf2file header is a prototype for cases where we
         # are writing from scratch (i.e. no example to copy from 
         # a parsed in file)
@@ -95,6 +116,8 @@ class UF2File:
         self.cleanup_resort = False
         self.overwrite_prototype_header_on_read = True
         self.fill_gaps = fill_gaps
+        
+        
         if len(fpath):
             self.from_file(fpath)
         
@@ -134,7 +157,9 @@ class UF2File:
             hdr.payload_size = len(bts)
             hdr.address = cur_offset
             cur_offset += hdr.payload_size
-            self.append_datablock(DataBlock(bts, hdr))
+            self.append_datablock(DataBlock(bts, hdr,
+                                                magic_start1=self.magic_start1,
+                                                magic_end=self.magic_end))
             
             pcount = end_count
             
@@ -189,6 +214,7 @@ class UF2File:
             data from file_path.
         
         '''
+        self._setupMagic()
         blks = self.readBlocks(file_path)
         if self.overwrite_prototype_header_on_read:
             self.header.address = blks[0].header.address 
@@ -259,6 +285,12 @@ class UF2File:
         sorted_blocks = sorted(self._blocks, key=lambda b: b.header.address)
         self._blocks = sorted_blocks 
         
+    def _setupMagic(self):
+        if self.magic_start1 is not None:
+            self.setMarkerStart(self.magic_start1)
+        if self.magic_end is not None:
+            self.setMarkerEnd(self.magic_end)
+            
     def _cleanup(self):
         if self.fill_gaps or self.cleanup_resort:
             self.sort_blocks()

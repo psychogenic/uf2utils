@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "uf2utils"
-version = "0.9.1"
+version = "0.9.4"
 authors = [
   { name="Pat Deegan" },
 ]
