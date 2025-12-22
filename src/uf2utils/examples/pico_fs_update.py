@@ -37,6 +37,9 @@ def get_args():
     parser.add_argument('--fs_offset', default=hex(cust_pico.DefaultFSBaseAddress), 
                         required=False,   
                         help="base offset in UF2 for filesystem")
+    parser.add_argument('--family', default=cust_pico.DefaultFamilyName, 
+                        required=False,   
+                        help=f"Chip family name [{cust_pico.DefaultFamilyName}]")
     
     return parser.parse_args()
 
@@ -60,7 +63,10 @@ def main():
     
     uf2 = UF2File()
     uf2.header.flags = uf2const.Flags.FamilyIDPresent
-    uf2.header.family = Family.byName('RP2040')
+    uf2.header.family = Family.byName(args.family)
+    if uf2.header.family is None:
+        print(f"Invalid family '{args.family}'")
+        return
     cust_pico.append_fs_to(uf2, tmp.name, get_offset(args))
     uf2.to_file(args.out)
     

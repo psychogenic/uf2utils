@@ -190,6 +190,28 @@ FamilyDescriptions = [
     'description': 'Raspberry Pi RP2040',
   },
   {
+    'id': 0xe48bff56,
+    'name': 'RP2040',
+    'description': 'Raspberry Pi RP2040',
+  },
+  {
+      'id': 0xe48bff59,
+      'name': 'rp2350-arm-s',
+      'description': 'rp2350 ARM S',
+  },
+  
+  {
+      'id': 0xe48bff5b,
+      'name': 'rp2350-arm-ns',
+      'description': 'rp2350 ARM NS',
+  },
+  
+  {
+      'id': 0xe48bff5a,
+      'name': 'rp2350-riscv',
+      'description': 'rp2350 RISC-V',
+  },
+  {
     'id': 0x00ff6919,
     'name': 'STM32L4',
     'description': 'ST STM32L4xx',

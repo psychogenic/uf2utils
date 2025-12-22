@@ -30,18 +30,37 @@ import tempfile
 
 from littlefs import LittleFS
 from uf2utils.file import UF2File
+import uf2utils.family 
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
 # the 0xa0000 is the spot in flash where 
 # the fs actually resides.  The 0x10000000
-# is the memory map to the flash base 
+# is the XIP_BASE memory map to the flash base 
 # within the pico bootloader
+# then MICROPY_HW_FLASH_STORAGE_BASE is 
+# (PICO_FLASH_SIZE_BYTES - MICROPY_HW_FLASH_STORAGE_BYTES)
+# which is what we want in our base address
 DefaultFSBaseAddress = 0x10000000 + 0xa0000
 
 PicoUpythonFSBlocksize = 4096
+
+DefaultFamilyName='RP2040'
+
 PicoUpythonFSBlockCount = 352 # this MUST be 352, nooooo, don't think of changing it noooooo
+# on the Pico standard distro, this magic number is
+# 352 * PicoUpythonFSBlocksize
+# 352 * 4096  = 1441792 == MICROPY_HW_FLASH_STORAGE_BYTES (1408 * 1024) from boards/RPI_PICO/mpconfigboard.h
+# If you happen to have a *different* size for flash storage, convert that to blocks
+# e.g. 
+# PICO_FLASH_SIZE_BYTES (4 * 1024 * 1024)
+# MICROPY_HW_FLASH_STORAGE_BYTES (PICO_FLASH_SIZE_BYTES - (2 * 1024 * 1024)) / PicoUpythonFSBlocksize
+# so 512
+
+
+
+
 PicoUpythonFSProgSize = 256
 
 def get_args():
@@ -56,14 +75,22 @@ def get_args():
     parser.add_argument('--fs_offset', default=hex(DefaultFSBaseAddress), 
                         required=False,   
                         help="base offset in UF2 for filesystem")
+    parser.add_argument('--family', default=DefaultFamilyName, 
+                        required=False,   
+                        help=f"Chip family name [{DefaultFamilyName}]")
+    
+    parser.add_argument('--block_count', default=PicoUpythonFSBlockCount,
+                        required=False,
+                        type=int,
+                        help='Block count for entire upython FS -- size must match that defined in build')
     
     return parser.parse_args()
 
     
 
-def prep_filesystem(files_from_dir:str, to_base_dir:str='/'):
+def prep_filesystem(files_from_dir:str, block_count:int, to_base_dir:str='/'):
     lfs = LittleFS(block_size=PicoUpythonFSBlocksize, 
-                   block_count=PicoUpythonFSBlockCount, 
+                   block_count=block_count, 
                    prog_size=PicoUpythonFSProgSize)
     for root, dir_names, file_names in os.walk(files_from_dir):
         lfs_base = root.replace(f'{files_from_dir}', to_base_dir).replace('//', '/')
@@ -110,12 +137,22 @@ def main():
     args = get_args()
     
     print
-    lfs = prep_filesystem(args.fs_root)
+    lfs = prep_filesystem(args.fs_root, args.block_count)
     tmp = tempfile.NamedTemporaryFile('wb', delete=False)
     write_filesystem(lfs, tmp)
     
     log.info(f'Loading {args.upython}')
-    uf2 = UF2File(args.upython, fill_gaps=True)
+    try:
+        famid = uf2utils.family.Family.byName(args.family)
+    except:
+        famid = None
+    
+    if famid is None:
+        log.error(f"Unknown family: '{args.family}'")
+        return 
+        
+    uf2 = UF2File(args.upython, board_family=famid, 
+                  fill_gaps=True)
     append_fs_to(uf2, tmp.name, get_offset(args))
     uf2.to_file(args.out)
     
