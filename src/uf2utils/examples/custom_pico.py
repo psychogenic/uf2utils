@@ -35,36 +35,30 @@ import uf2utils.family
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
-# the 0xa0000 is the spot in flash where 
-# the fs actually resides.  The 0x10000000
+# basic defaults
+PICO_FLASH_SIZE_BYTES_DEFAULT = 4*1024*1024
+RESERVED_FOR_MICROPYTHON = (800*1024) # 800k reserved for uPython
+
+DefaultFamilyName='RP2040'
+
+MICROPY_HW_FLASH_STORAGE_BYTES_DEFAULT = PICO_FLASH_SIZE_BYTES_DEFAULT - RESERVED_FOR_MICROPYTHON
+
+
+## Should probably not mess with these
+# 0x10000000
 # is the XIP_BASE memory map to the flash base 
 # within the pico bootloader
 # then MICROPY_HW_FLASH_STORAGE_BASE is 
 # (PICO_FLASH_SIZE_BYTES - MICROPY_HW_FLASH_STORAGE_BYTES)
-# which is what we want in our base address
-DefaultFSBaseAddress = 0x10000000 + 0xa0000
+# which is what we want in our base address (i.e. the fs_offset
+# a parameter that is now optional)
+XIP_BASE = 0x10000000
 
 PicoUpythonFSBlocksize = 4096
-
-DefaultFamilyName='RP2040'
-
-PicoUpythonFSBlockCount = 352 # this MUST be 352, nooooo, don't think of changing it noooooo
-# on the Pico standard distro, this magic number is
-# 352 * PicoUpythonFSBlocksize
-# 352 * 4096  = 1441792 == MICROPY_HW_FLASH_STORAGE_BYTES (1408 * 1024) from boards/RPI_PICO/mpconfigboard.h
-# If you happen to have a *different* size for flash storage, convert that to blocks
-# e.g. 
-# PICO_FLASH_SIZE_BYTES (4 * 1024 * 1024)
-# MICROPY_HW_FLASH_STORAGE_BYTES (PICO_FLASH_SIZE_BYTES - (2 * 1024 * 1024)) / PicoUpythonFSBlocksize
-# so 512
-
-
-
-
 PicoUpythonFSProgSize = 256
 
 def get_args():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="Generate a UF2 for micropython")
     
     parser.add_argument('--fs_root', required=True,
                         help='directory to use as root of filesystem')
@@ -72,23 +66,36 @@ def get_args():
                         help='MicroPython UF2 to use as base OS')
     parser.add_argument('--out', required=True,
                                 help='output UF2 file with fs to create')
-    parser.add_argument('--fs_offset', default=hex(DefaultFSBaseAddress), 
+    
+    parser.add_argument('--pico-flash', required=False, 
+                            type=int,
+                            default=PICO_FLASH_SIZE_BYTES_DEFAULT,
+                            help="Size of flash chip on board (bytes)")
+    
+    parser.add_argument('--fs-bytes', required=False, 
+                            type=int,
+                            default=MICROPY_HW_FLASH_STORAGE_BYTES_DEFAULT,
+                            help="Size reserved on chip for uPython FS (bytes)")
+    parser.add_argument('--fs_offset',
+                        default=-1, 
                         required=False,   
-                        help="base offset in UF2 for filesystem")
+                        help="base offset in UF2 for filesystem -- only override if you know")
     parser.add_argument('--family', default=DefaultFamilyName, 
                         required=False,   
                         help=f"Chip family name [{DefaultFamilyName}]")
     
-    parser.add_argument('--block_count', default=PicoUpythonFSBlockCount,
+    parser.add_argument('--block_count', default=-1,
                         required=False,
                         type=int,
-                        help='Block count for entire upython FS -- size must match that defined in build')
+                        help='Block count for entire upython FS -- override if must, but calculated using pico-flash/hw-flash-storage')
     
     return parser.parse_args()
 
     
 
 def prep_filesystem(files_from_dir:str, block_count:int, to_base_dir:str='/'):
+    
+    log.info(f"Prepping LittleFS with {block_count} blocks of {PicoUpythonFSBlocksize} (total {block_count * PicoUpythonFSBlocksize / 1024**2}M)")
     lfs = LittleFS(block_size=PicoUpythonFSBlocksize, 
                    block_count=block_count, 
                    prog_size=PicoUpythonFSProgSize)
@@ -126,18 +133,28 @@ def append_fs_to(uf2:UF2File, path_to_image:str, start_offset):
     
 def get_offset(args):
     v = 0
+    if type(args.fs_offset) == int and args.fs_offset < 0:
+        return XIP_BASE + (args.pico_flash - args.fs_bytes)
+    
     try:
         v = int(args.fs_offset)
     except ValueError:
         v = int(args.fs_offset, 16)
     
     return v
+
+def get_blockcount(args):
+    if args.block_count < 0:
+        return int(args.fs_bytes / PicoUpythonFSBlocksize)
+    
+    return args.block_count 
     
 def main():
     args = get_args()
     
-    print
-    lfs = prep_filesystem(args.fs_root, args.block_count)
+    
+    print(f"Prepping UF2 for {int(args.pico_flash / 1024**2)}M flash, with {args.fs_bytes / 1024**2:.2f}M for FS")
+    lfs = prep_filesystem(args.fs_root, get_blockcount(args))
     tmp = tempfile.NamedTemporaryFile('wb', delete=False)
     write_filesystem(lfs, tmp)
     
