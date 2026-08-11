@@ -70,12 +70,12 @@ def get_args():
     parser.add_argument('--pico-flash', required=False, 
                             type=int,
                             default=PICO_FLASH_SIZE_BYTES_DEFAULT,
-                            help="Size of flash chip on board (bytes)")
+                            help="Size of flash chip on board (bytes) [%(default)s]")
     
     parser.add_argument('--fs-bytes', required=False, 
                             type=int,
                             default=MICROPY_HW_FLASH_STORAGE_BYTES_DEFAULT,
-                            help="Size reserved on chip for uPython FS (bytes)")
+                            help="Size reserved on chip for uPython FS (bytes) [%(default)s]")
     parser.add_argument('--fs_offset',
                         default=-1, 
                         required=False,   
