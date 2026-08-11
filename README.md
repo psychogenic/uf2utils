@@ -64,10 +64,25 @@ Easy peasy.  To base an entire distro, and recursively include all the contents 
 
 ```
 python uf2utils/examples/custom_pico.py \
+       --fs-bytes 1441792 \
        --fs_root /tmp/mypython \ 
        --upython /tmp/RPI_PICO-20240222-v1.22.2.uf2 \
        --out /tmp/rpi-custom.uf2
 ```
+
+There are two parameters that depend on how the original UF2 is built:
+  * `--pico-flash`: the size of the flash chip on the board (defaults to 4 Meg)
+  * `--fs-bytes`: the size reserved for the filesystem
+  
+both in bytes.  The `--fs-bytes` is basically the `MICROPY_HW_FLASH_STORAGE_BYTES` define used when building the software.  It is:
+
+ * 1441792 (1408k) for the RPI_PICO
+ * 3145728 (3 Meg) for the RPI_PICO2 
+ * 868352 for the RPI_PICOW
+
+for other boards, you'll have to check.
+  
+ 
 
 If you want a smaller file that you can use to update only the contents of the LittleFS filesystem with, you can instead do 
 
@@ -85,21 +100,24 @@ The `uf2utils.examples` also contains a sample of extracting payloads from  UF2 
 
 
 
-## Extra info about Pico/RP2040 MicroPython UF2
+## Extra info about Pico/RP2 MicroPython UF2
 
-In addition to figuring out how to deal with the massively redundant UF2 files, some stumbling around was needed to actually get a conjoined OS + filesystem UF2 for some custom RP2040-based boards.
+For reasons, I'm actually now building a fully custom RP2 micropython UF2 for use with the [Tiny Tapeout Demoboards](https://github.com/TinyTapeout/tt-demo-pcb).  The process bakes in all the [Tiny Tapeout MicroPython SDK](https://github.com/TinyTapeout/tt-micropython-firmware) and generates a UF2 for my custom boards (now hosting an RP2350).  If you want a full example of building micropython, the filesystem, freezing modules and putting it all together in a UF2, see the [github action](https://github.com/TinyTapeout/tt-micropython-firmware/blob/main/.github/workflows/release.yml) I created for this.
+
+
+
+In addition to figuring out how to deal with the massively redundant UF2 files, some stumbling around was needed to actually get a conjoined OS + filesystem UF2 for some custom RP2-based boards.
 
 I include some notes and discoveries here, made through research, debugging with Uri and a lot of trial and error, in the hopes that you won't need to fumble around as much.  This all applies to the Pico/RP2040 bootloader, uncertain how general these truths may be but none of them should hurt any platform.
 
 The block number and block total matter.  The UF2File objects have a `renumber_blocks()` that handle this simple matter, and it will be called automatically if you "dirty" the file by using `append_payload()`.
 
-The RP2040 MicroPython filesystem is [LittleFS](https://github.com/littlefs-project/littlefs) and its a nice simple fs, with a pretty [nifty viewer online](https://tniessen.github.io/littlefs-disk-img-viewer/).  When you create it, the blocksize must be 4096 and I *think* the OS is unhappy if you have a value other that 352 blocks in there.  The [default MicroPython _boot.py](https://github.com/micropython/micropython/blob/master/ports/rp2/modules/_boot.py) will just wipe anything it's unhappy with.
+The RP2 MicroPython filesystems are [LittleFS](https://github.com/littlefs-project/littlefs) and its a nice simple fs, with a pretty [nifty viewer online](https://tniessen.github.io/littlefs-disk-img-viewer/).  When you create it, the blocksize must be 4096 and I've now figured out how to deal with the offset/block counts based on the flash size (`--pico-flash` and `--fs-bytes` params described above).  The [default MicroPython _boot.py](https://github.com/micropython/micropython/blob/master/ports/rp2/modules/_boot.py) will just wipe anything it's unhappy with.
 
-With RP2040 uPython, the FS is on the flash at 0xA0000 -- and this is a value, *__vfs_start* or something, that is really painful to try and discover, or at least it was for me.  When creating the UF2 file, this offset must become relative to  `FLASH(rx) : ORIGIN = 0x10000000`, so *0x100a0000*.
 
 The UF2 "blocksize"--each block in UF2 is fixed at 512 bytes, here I mean the size of each block's payload--needs to be 256, such that each block received by the bootloader writes a page to the flash.  So, your payload winds up in a 2x bloated file, where almost half the payload bytes are forced to be zeros and then there are the no less than 12 bytes of "magic".  So, a fat file.
 
-The UF2 format actually is rather nice in that each block is independent and we could, in theory, skip over zones we don't care about.  But then the RP2040 bootloader really doesn't like that.  The last datablock in the current RPI_PICO-20240222-v1.22.2.uf2 is at offset 0x1004f500, and I'm adding the FS down at 0x100a0000.  Turns out, you really must pad everything to fill the gap with empty datablocks, otherwise the bootloader gets sad and you don't get your files.
+The UF2 format actually is rather nice in that each block is independent and we could, in theory, skip over zones we don't care about.  But then the RP2040 bootloader really doesn't like that.  The last datablock in the current RPI_PICO-20240222-v1.22.2.uf2 is at offset 0x1004f500, and I'm adding the FS down at, e.g., 0x100a0000 for the RPI_PICO.  Turns out, you really must pad everything to fill the gap with empty datablocks, otherwise the bootloader gets sad and you don't get your files written properly.
 
 For this specific case, the `UF2File` class constructor has a `fill_gaps` boolean, or you can just manually use `generate_blocks_for_gaps()` (assuming the blocks are sorted).  Files gets bigger but now we can update OS and FS in one go, great for factory.
 
@@ -111,5 +129,5 @@ Another option, for size or just later updates of FS, is to generate only the fi
 This library is release under the LGPL.  See the LICENSE files for details.
 
 
-2024-03-14, happy Pi day, have fun/cheers,
+2026-08-11 have fun/cheers,
 Pat Deegan
